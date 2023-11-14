@@ -11,12 +11,8 @@ class TimeStreamConnector
     protected string $user = '';
     protected string $password = '';
     protected string $region = '';
+    protected string $version = '';
     protected string $database = '';
-
-    protected const TIME_UNIT_MILLISECONDS = 'MILLISECONDS';
-    protected const TIME_UNIT_SECONDS = 'SECONDS';
-    protected const TIME_UNIT_MICROSECONDS = 'MICROSECONDS';
-    protected const TIME_UNIT_NANOSECONDS = 'NANOSECONDS';
 
     /** @var TimeStreamConnector[] */
     protected static array $connectors = [];
@@ -60,6 +56,12 @@ class TimeStreamConnector
         return $this;
     }
 
+    public function setVersion(string $version): static
+    {
+        $this->version = $version;
+        return $this;
+    }
+
     public function connect(): static
     {
         if ($this->connection !== null) {
@@ -68,7 +70,9 @@ class TimeStreamConnector
 
         // Perform the connection
         $credentials = new Credentials($this->user, $this->password);
-        $this->connection = new Sdk(['region' => $this->region, 'credentials' => $credentials]);
+        $sdkData = ['region' => $this->region, 'credentials' => $credentials];
+        if ($this->version !== '') $sdkData['version'] = $this->version;
+        $this->connection = new Sdk($sdkData);
         return $this;
     }
 
@@ -91,35 +95,56 @@ class TimeStreamConnector
     public function query(string $query): ?array
     {
         $client = $this->getQueryClient();
-        $r = $client->query([
-            'QueryString' => $query
-        ]);
+        $result = $client->query(['QueryString' => $query]);
 
-        return $r;
+        $columnInfo = $result->getIterator()['ColumnInfo'];
+        $rows = $result->getIterator()['Rows'];
+        return array_map(function ($point) use($columnInfo) {
+            $r = [];
+            foreach ($columnInfo as $i => $column) {
+                $r[$column['Name']] = $point['Data'][$i]['ScalarValue'];
+            }
+            return $r;
+        }, $rows);
     }
 
     public function write(string $table, array $records): \Aws\Result
     {
-        $records = [
-            [
-                'Dimensions' => [
-                    [
-                        'Name' => 'test',
-                        'Value' => '1',
-                    ]
-                ],
-                'MeasureName' => 't1',
-                'MeasureValue' => '500',
-                'Time' => (string)time(),
-                'TimeUnit' => static::TIME_UNIT_SECONDS
-            ]
-        ];
-        $payload = [
-            'DatabaseName' => $this->database,
-            'TableName' => $table,
-            'Records' => $records,
-        ];
         $client = $this->getWriteClient();
-        return $client->writeRecords($payload);
+
+        if (count($records) <= 100) {
+            $payload = [
+                'DatabaseName' => $this->database,
+                'TableName' => $table,
+                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($records),
+            ];
+            return $client->writeRecords($payload);
+        }
+        $toStore = array_chunk($records, 100);
+        $r = null;
+        foreach ($toStore as $data) {
+            $r = $client->writeRecords([
+                'DatabaseName' => $this->database,
+                'TableName' => $table,
+                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($data),
+            ]);
+        }
+        return $r;
+    }
+
+    public function last(string $table): ?array
+    {
+        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" ORDER BY time DESC LIMIT 1";
+        $r =  $this->query($query);
+        if (count($r) > 0) return $r[0];
+        return null;
+    }
+
+    public function first(string $table): ?array
+    {
+        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" ORDER BY time ASC LIMIT 1";
+        $r =  $this->query($query);
+        if (count($r) > 0) return $r[0];
+        return null;
     }
 }
