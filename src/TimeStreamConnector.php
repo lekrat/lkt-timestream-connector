@@ -99,7 +99,7 @@ class TimeStreamConnector
 
         $columnInfo = $result->getIterator()['ColumnInfo'];
         $rows = $result->getIterator()['Rows'];
-        return array_map(function ($point) use($columnInfo) {
+        return array_map(function ($point) use ($columnInfo) {
             $r = [];
             foreach ($columnInfo as $i => $column) {
                 $r[$column['Name']] = $point['Data'][$i]['ScalarValue'];
@@ -132,18 +132,28 @@ class TimeStreamConnector
         return $r;
     }
 
-    public function last(string $table): ?array
+    public function last(string $table, string $where = ''): ?array
     {
-        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" ORDER BY time DESC LIMIT 1";
-        $r =  $this->query($query);
+        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" :where ORDER BY time DESC LIMIT 1";
+        if ($where !== '') {
+            $query = str_replace(':where', " WHERE {$where}", $query);
+        } else {
+            $query = str_replace(':where', '', $query);
+        }
+        $r = $this->query($query);
         if (count($r) > 0) return $r[0];
         return null;
     }
 
-    public function first(string $table): ?array
+    public function first(string $table, string $where = ''): ?array
     {
-        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" ORDER BY time ASC LIMIT 1";
-        $r =  $this->query($query);
+        $query = "SELECT * FROM \"{$this->database}\".\"{$table}\" :where ORDER BY time ASC LIMIT 1";
+        if ($where !== '') {
+            $query = str_replace(':where', " WHERE {$where}", $query);
+        } else {
+            $query = str_replace(':where', '', $query);
+        }
+        $r = $this->query($query);
         if (count($r) > 0) return $r[0];
         return null;
     }
