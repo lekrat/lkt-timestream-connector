@@ -3,6 +3,7 @@
 namespace Lkt\Connectors;
 
 use Aws\Credentials\Credentials;
+use Aws\Result;
 use Aws\Sdk;
 
 class TimeStreamConnector
@@ -156,5 +157,100 @@ class TimeStreamConnector
         $r = $this->query($query);
         if (count($r) > 0) return $r[0];
         return null;
+    }
+
+    public function createDatabase(string $name): Result
+    {
+        $payload = [
+            'DatabaseName' => $name
+        ];
+        $client = $this->getWriteClient();
+        return $client->createDatabase($payload);
+    }
+
+    public function deleteDatabase(string $name): Result
+    {
+        $payload = [
+            'DatabaseName' => $name
+        ];
+        $client = $this->getWriteClient();
+        return $client->deleteDatabase($payload);
+    }
+
+    public function describeDatabase(string $name): Result
+    {
+        $payload = [
+            'DatabaseName' => $name
+        ];
+        $client = $this->getWriteClient();
+        return $client->describeDatabase($payload);
+    }
+
+    public function existsDatabase(string $name): bool
+    {
+        $payload = [
+            'DatabaseName' => $name
+        ];
+        $client = $this->getWriteClient();
+
+        try {
+            $result = $client->describeDatabase($payload);
+        } catch (\Exception $e) {
+            return false;
+        }
+        return true;
+    }
+
+    public function createTable(string $table, int $memoryRetentionInHours = 21900, int $magneticRetentionInDays = 73000, bool $enableMagneticStoreWrites = true): Result
+    {
+        $payload = [
+            'DatabaseName' => $this->database,
+            'TableName' => $table,
+            'MagneticStoreWriteProperties' => [
+                'EnableMagneticStoreWrites' => $enableMagneticStoreWrites,
+            ],
+            'RetentionProperties' => [
+                'MagneticStoreRetentionPeriodInDays' => $magneticRetentionInDays,
+                'MemoryStoreRetentionPeriodInHours' => $memoryRetentionInHours,
+            ]
+        ];
+        $client = $this->getWriteClient();
+        return $client->createTable($payload);
+    }
+
+    public function describeTable(string $table): Result
+    {
+        $payload = [
+            'DatabaseName' => $this->database,
+            'TableName' => $table,
+        ];
+        $client = $this->getWriteClient();
+        return $client->describeTable($payload);
+    }
+
+    public function existsTable(string $table): bool
+    {
+        $payload = [
+            'DatabaseName' => $this->database,
+            'TableName' => $table,
+        ];
+        $client = $this->getWriteClient();
+
+        try {
+            $result = $client->describeTable($payload);
+        } catch (\Exception $e) {
+            return false;
+        }
+        return true;
+    }
+
+    public function deleteTable(string $table): Result
+    {
+        $payload = [
+            'DatabaseName' => $this->database,
+            'TableName' => $table,
+        ];
+        $client = $this->getWriteClient();
+        return $client->deleteTable($payload);
     }
 }
