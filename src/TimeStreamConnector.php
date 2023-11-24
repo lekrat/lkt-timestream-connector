@@ -201,7 +201,7 @@ class TimeStreamConnector
         return true;
     }
 
-    public function createTable(string $table, int $memoryRetentionInHours = 21900, int $magneticRetentionInDays = 73000, bool $enableMagneticStoreWrites = true): Result
+    public function createTable(string $table, int $memoryRetentionInHours = 8766, int $magneticRetentionInDays = 73000, bool $enableMagneticStoreWrites = true): Result
     {
         $payload = [
             'DatabaseName' => $this->database,
