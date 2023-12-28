@@ -15,6 +15,8 @@ class TimeStreamConnector
     protected string $version = '';
     protected string $database = '';
 
+    protected bool $isMultiMode = false;
+
     /** @var TimeStreamConnector[] */
     protected static array $connectors = [];
 
@@ -60,6 +62,12 @@ class TimeStreamConnector
     public function setVersion(string $version): static
     {
         $this->version = $version;
+        return $this;
+    }
+
+    public function setMultiMode(bool $enabled = true): static
+    {
+        $this->isMultiMode = $enabled;
         return $this;
     }
 
@@ -117,7 +125,7 @@ class TimeStreamConnector
             $payload = [
                 'DatabaseName' => $this->database,
                 'TableName' => $table,
-                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($records),
+                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($records, $this->isMultiMode),
             ];
             return $client->writeRecords($payload);
         }
@@ -127,7 +135,7 @@ class TimeStreamConnector
             $r = $client->writeRecords([
                 'DatabaseName' => $this->database,
                 'TableName' => $table,
-                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($data),
+                'Records' => TimeStreamRecord::fromDataRecordsToWriteClient($data, $this->isMultiMode),
             ]);
         }
         return $r;

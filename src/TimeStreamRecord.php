@@ -13,6 +13,7 @@ class TimeStreamRecord
     protected array $dimensions = [];
 
     protected string $name = '';
+    protected bool $useName = true;
     protected string $value = '';
     protected array $values = [];
 
@@ -41,6 +42,12 @@ class TimeStreamRecord
 
         foreach ($dimensions as $dimension => $dimensionValue) $r->setDimension($dimension, $dimensionValue);
 
+        if (isset($record['_aws_name'])) {
+            $name = trim($record['_aws_name']);
+        } else {
+            $r->useName = false;
+        }
+        unset($record['_aws_name']);
         $r->name = $name;
         $r->values = $record;
         $r->time = (string)$time;
@@ -97,16 +104,16 @@ class TimeStreamRecord
         ];
 
         if ($this->values) {
-            $r['MeasureName'] = $key;
+            $r['MeasureName'] = $this->useName ? $this->name : $key;
             $r['MeasureValueType'] = 'MULTI';
             $r['MeasureValues'] = [];
             foreach ($this->values as $key => $value) {
 
                 $type = 'DOUBLE';
-                if (is_string($value)) $type = 'VARCHAR';
                 if (is_bool($value)) $type = 'BOOLEAN';
                 if (is_numeric($value)) $type = 'DOUBLE';
                 if (is_int($value)) $type = 'BIGINT';
+                if (is_string($value)) $type = 'VARCHAR';
 
                 $r['MeasureValues'][] = [
                     'Name' => $key,
@@ -122,11 +129,18 @@ class TimeStreamRecord
         return $r;
     }
 
-    public static function fromDataRecordsToWriteClient(array $records): array
+    public static function fromDataRecordsToWriteClient(array $records, bool $isMulti): array
     {
         $r = [];
         foreach ($records as $i => $record) {
-            $aux = static::defineMulti($i, $record);
+            if ($isMulti) {
+                $aux = static::defineMulti($i, $record);
+            } else {
+                $aux = static::define(trim($record['name']), $record['value'], $record['_aws_time']);
+                $dimensions = is_array($record['_aws_dimensions']) ? $record['_aws_dimensions'] : [];
+
+                foreach ($dimensions as $dimension => $dimensionValue) $aux->setDimension($dimension, $dimensionValue);
+            }
             $r[] = $aux->toWriteClient();
         }
 
